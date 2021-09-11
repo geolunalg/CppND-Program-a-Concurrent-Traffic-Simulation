@@ -25,10 +25,10 @@ template <typename T> void MessageQueue<T>::send(T &&msg) {
   // message to the queue and afterwards send a notification.
 
   std::lock_guard<std::mutex> lockGuard(_mutex);
-
+  _queue.clear();
   std::cout << "  Message " << msg << " has been sent to the queue"
             << std::endl;
-  _queue.push_back(std::move(msg));
+  _queue.emplace_back(msg);
   _condition.notify_one();
 }
 
@@ -43,11 +43,7 @@ void TrafficLight::waitForGreen() {
   // returns.
 
   while (true) {
-    // sleep for 1ms on every iteration to reduce CPU usage
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-
     TrafficLightPhase tlp = _messageQueue.receive();
-
     if (tlp == green)
       return;
   }
@@ -74,24 +70,26 @@ void TrafficLight::cycleThroughPhases() {
   // generate a random number
   std::random_device rd;
   std::mt19937 eng(rd());
-  std::uniform_real_distribution<> urdist(4, 6);
+  std::uniform_real_distribution<> urdist(4000, 6000);
 
   // set the duration or each cycle
   double cycleDuration = urdist(eng);
-  std::chrono::time_point<std::chrono::system_clock> lastUpdate;
 
   // set the last update
+  std::chrono::time_point<std::chrono::system_clock> lastUpdate;
   lastUpdate = std::chrono::system_clock::now();
+
+  // use to determine the last we changed the light
+  double timeSinceLastUpdate = 0;
 
   while (true) {
     // sleep to reduce the streess on the CPU
     std::this_thread::sleep_for(std::chrono::microseconds(1));
 
     // check the time since the last update
-    long timeSinceLastUpdate =
-        std::chrono::duration_cast<std::chrono::seconds>(
-            std::chrono::system_clock::now() - lastUpdate)
-            .count();
+    timeSinceLastUpdate = std::chrono::duration_cast<std::chrono::milliseconds>(
+                              std::chrono::system_clock::now() - lastUpdate)
+                              .count();
 
     // check if we need to change the ligth on this cycle
     if (timeSinceLastUpdate >= cycleDuration) {
